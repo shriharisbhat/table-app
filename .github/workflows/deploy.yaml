@@ -12,7 +12,7 @@ jobs:
       id-token: write
       contents: read
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v1
@@ -22,6 +22,9 @@ jobs:
 
     - name: Configure Node.js
       uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
       
     - name: Install dependencies
       run: npm install
@@ -38,4 +41,26 @@ jobs:
 
     - name: Upload versioned build to S3
       run: aws s3 cp build-${{ env.VERSION }}.tar.gz s3://web-app-directive/builds/
-      
+    
+  terraform-apply:
+    runs-on: ubuntu-latest
+    needs: deploy
+    environment:
+      name: production
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}  # This should be the ARN of the github_actions_role
+        aws-region: us-east-1
+
+    - name: Terraform init
+      run: terraform init
+
+    - name: Terraform Plan
+      run: terraform plan -var 'react_build_version=${{ env.VERSION }}'
+
+    - name: Terraform Apply
+      run: terraform apply -auto-approve -var 'react_build_version=${{ env.VERSION }}'
